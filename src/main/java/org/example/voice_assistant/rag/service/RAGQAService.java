@@ -3,6 +3,7 @@ package org.example.voice_assistant.rag.service;
 import lombok.extern.slf4j.Slf4j;
 import org.example.voice_assistant.agent.Agent;
 import org.example.voice_assistant.config.RAGConfig;
+import org.example.voice_assistant.rag.evaluation.RAGMetricsService;
 import org.example.voice_assistant.rag.service.VectorSearchService.SearchResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,9 @@ public class RAGQAService {
 
     @Autowired
     private RAGConfig ragConfig;
+
+    @Autowired
+    private RAGMetricsService metricsService;
 
     /**
      * 【框架步骤 2-5】完整的RAG流程（非流式）
@@ -55,8 +59,11 @@ public class RAGQAService {
                 searchResults = vectorSearchService.searchSimilarDocuments(query, topK);
             }
             
+            metricsService.recordRetrieval();
+
             if (!hasRelevantResults(searchResults)) {
                 log.warn("未检索到相关文档（无结果或最高相似度低于阈值），使用普通对话");
+                metricsService.recordFiltered();
                 String systemPrompt = buildBasicSystemPrompt(historyPrompt, baseSystemPrompt);
                 return agent.run(query, systemPrompt);
             }
@@ -80,10 +87,12 @@ public class RAGQAService {
             // 【框架步骤 5】返回结果
             // ============================================
             log.info("✅ 【框架步骤 5】RAG问答流程完成");
+            metricsService.recordRagSuccess();
             return answer;
 
         } catch (Exception e) {
             log.error("❌ RAG问答失败，降级到普通对话", e);
+            metricsService.recordRagFallback();
             try {
                 String systemPrompt = buildBasicSystemPrompt(historyPrompt, baseSystemPrompt);
                 return agent.run(query, systemPrompt);
@@ -124,9 +133,12 @@ public class RAGQAService {
                 searchResults = vectorSearchService.searchSimilarDocuments(query, topK);
             }
             
+            metricsService.recordRetrieval();
+
             String systemPrompt;
             if (!hasRelevantResults(searchResults)) {
                 log.warn("未检索到相关文档（无结果或最高相似度低于阈值），使用普通对话");
+                metricsService.recordFiltered();
                 systemPrompt = buildBasicSystemPrompt(historyPrompt, baseSystemPrompt);
             } else {
                 log.info("✅ 【框架步骤 2】检索到 {} 个相关文档", searchResults.size());
@@ -142,11 +154,13 @@ public class RAGQAService {
             // 【框架步骤 4】LLM调用（流式）
             // ============================================
             log.info("🚀 【框架步骤 4】开始流式LLM调用");
-            
+
             agent.runStream(query, systemPrompt, onToken, onComplete, onError);
+            metricsService.recordRagSuccess();
 
         } catch (Exception e) {
             log.error("❌ RAG问答失败，降级到普通对话", e);
+            metricsService.recordRagFallback();
             try {
                 String systemPrompt = buildBasicSystemPrompt(historyPrompt, baseSystemPrompt);
                 agent.runStream(query, systemPrompt, onToken, onComplete, onError);
@@ -161,20 +175,21 @@ public class RAGQAService {
 
     /**
      * 判断检索结果是否有效。
-     * 两个条件：结果非空 && 最高相似度 >= 配置的阈值。
+     * 两个条件：结果非空 && 最佳匹配的 L2 距离 <= 配置的阈值。
+     * Milvus 使用 L2 距离度量：值越小表示越相似，0 表示完全相同。
      */
     private boolean hasRelevantResults(List<SearchResult> results) {
         if (results == null || results.isEmpty()) {
             return false;
         }
         double threshold = ragConfig.getMinScore();
-        float maxScore = 0f;
+        float bestScore = Float.MAX_VALUE;
         for (SearchResult r : results) {
-            if (r.getScore() > maxScore) maxScore = r.getScore();
+            if (r.getScore() < bestScore) bestScore = r.getScore();
         }
-        boolean passes = maxScore >= threshold;
-        log.info("检索最高相似度: {}, 阈值: {}, 通过: {}",
-                String.format("%.4f", maxScore), String.format("%.4f", threshold), passes);
+        boolean passes = bestScore <= threshold;
+        log.info("检索最佳L2距离: {}, 阈值: {}, 通过: {}",
+                String.format("%.4f", bestScore), String.format("%.4f", threshold), passes);
         return passes;
     }
 
@@ -187,7 +202,7 @@ public class RAGQAService {
         
         for (int i = 0; i < searchResults.size(); i++) {
             SearchResult result = searchResults.get(i);
-            context.append(String.format("📄 文档 %d (相似度: %.2f):\n", i + 1, result.getScore()));
+            context.append(String.format("📄 文档 %d (L2距离: %.2f, 越小越匹配):\n", i + 1, result.getScore()));
             context.append(result.getContent()).append("\n\n");
         }
         

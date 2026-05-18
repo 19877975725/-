@@ -4,12 +4,13 @@ import io.milvus.client.MilvusServiceClient;
 import io.milvus.grpc.SearchResults;
 import io.milvus.param.MetricType;
 import io.milvus.param.R;
+import io.milvus.param.RpcStatus;
+import io.milvus.param.collection.LoadCollectionParam;
 import io.milvus.param.dml.SearchParam;
 import io.milvus.response.SearchResultsWrapper;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.math3.geometry.partitioning.Embedding;
 import org.example.voice_assistant.constant.MilvusConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,9 @@ public class VectorSearchService {
     public List<SearchResult> searchSimilarDocuments(String query, int topK) {
         try {
             log.info("开始搜索相似文档，查询：{},topK：{}",query,topK);
+
+            // 0. 确保 collection 已加载
+            ensureCollectionLoaded();
 
             // 1. 将查询文本向量化
             List<Float> queryVector = embeddingService.generateQueryVector(query);
@@ -72,6 +76,8 @@ public class VectorSearchService {
                 results.add(result);
 
             }
+            // L2 度量：分数越小越相似，升序排列确保最佳结果在前
+            results.sort((a, b) -> Float.compare(a.getScore(), b.getScore()));
             log.info("搜索完成, 找到 {} 个相似文档", results.size());
             return results;
         } catch (Exception e) {
@@ -119,20 +125,40 @@ public class VectorSearchService {
     }
 
     /**
-     * 去重搜索结果
+     * 去重搜索结果，同一文档多次出现时保留最佳分数（L2 距离最小）。
      */
     private List<SearchResult> deduplicateResults(List<SearchResult> results) {
-        List<SearchResult> uniqueResults = new ArrayList<>();
-        List<String> seenIds = new ArrayList<>();
+        java.util.LinkedHashMap<String, SearchResult> bestByDoc = new java.util.LinkedHashMap<>();
 
-        for (SearchResult result : results) {
-            if (!seenIds.contains(result.getId())) {
-                seenIds.add(result.getId());
-                uniqueResults.add(result);
+        for (SearchResult r : results) {
+            String key = r.getId();
+            SearchResult existing = bestByDoc.get(key);
+            if (existing == null || r.getScore() < existing.getScore()) {
+                bestByDoc.put(key, r);
             }
         }
 
-        return uniqueResults;
+        return new ArrayList<>(bestByDoc.values());
+    }
+
+    /**
+     * 确保 Milvus collection 已加载到内存。
+     * 搜索前必须调用，否则会报 "collection not loaded" 错误。
+     */
+    private void ensureCollectionLoaded() {
+        try {
+            R<RpcStatus> response = milvusClient.loadCollection(
+                    LoadCollectionParam.newBuilder()
+                            .withCollectionName(MilvusConstants.MILVUS_COLLECTION_NAME)
+                            .build()
+            );
+            // 状态码 0 = 加载成功，65535 = 已加载
+            if (response.getStatus() != 0 && response.getStatus() != 65535) {
+                log.warn("加载 collection 状态异常: {}", response.getMessage());
+            }
+        } catch (Exception e) {
+            log.warn("加载 collection 异常（可能已加载）: {}", e.getMessage());
+        }
     }
 
     /**

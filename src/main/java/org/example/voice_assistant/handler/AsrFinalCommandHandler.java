@@ -7,6 +7,7 @@ import org.example.voice_assistant.config.RAGConfig;
 import org.example.voice_assistant.tts.SentenceBoundaryDetector;
 import org.example.voice_assistant.dto.WebSocketMessage;
 import org.example.voice_assistant.entity.Assistant;
+import org.example.voice_assistant.rag.evaluation.RAGMetricsService;
 import org.example.voice_assistant.rag.service.IntentRouter;
 import org.example.voice_assistant.rag.service.QueryIntent;
 import org.example.voice_assistant.rag.service.RAGQAService;
@@ -29,6 +30,7 @@ public class AsrFinalCommandHandler extends BaseCommandHandler{
     private final RAGQAService ragQAService;
     private final RAGConfig ragConfig;
     private final IntentRouter intentRouter;
+    private final RAGMetricsService metricsService;
 
     public AsrFinalCommandHandler(SessionManager sessionManager
             , Agent agent
@@ -36,7 +38,8 @@ public class AsrFinalCommandHandler extends BaseCommandHandler{
             , AssistantService assistantService
             , RAGQAService ragQAService
             , RAGConfig ragConfig
-            , IntentRouter intentRouter) {
+            , IntentRouter intentRouter
+            , RAGMetricsService metricsService) {
         super(sessionManager);
         this.agent = agent;
         this.conversationHistoryService = conversationHistoryService;
@@ -44,6 +47,7 @@ public class AsrFinalCommandHandler extends BaseCommandHandler{
         this.ragQAService = ragQAService;
         this.ragConfig = ragConfig;
         this.intentRouter = intentRouter;
+        this.metricsService = metricsService;
     }
 
     @Override
@@ -113,6 +117,9 @@ public class AsrFinalCommandHandler extends BaseCommandHandler{
             // ============================================
             if (ragConfig.getAutoRoute()) {
                 QueryIntent intent = intentRouter.classify(asrText);
+
+                metricsService.recordRequest();
+                metricsService.recordIntent(intent.name());
 
                 switch (intent) {
                     case KNOWLEDGE:

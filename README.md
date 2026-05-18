@@ -226,3 +226,281 @@ autoRoute(false) → 兼容模式，全部走 RAG
 | 相关性阈值默认值     | 0.55         | 经验值，需要根据实际数据调参           |
 | autoRoute 开关       | 可关闭       | 保留向后兼容，关闭后行为与原来完全一致 |
 | COMMAND 意图处理     | 暂走普通对话 | 预留扩展点，以后可接入工具调用         |
+
+# 5.12.1
+
+### 新增 6 个文件
+
+| 文件                                       | 作用                                                         |
+| ------------------------------------------ | ------------------------------------------------------------ |
+| rag/evaluation/EvaluationQuery.java        | 标注查询数据模型：query、期望检索到的文档 ID、期望意图       |
+| rag/evaluation/QueryEvaluationDetail.java] | 单条查询的评估明细（检索排名、被过滤状态、意图分类结果）     |
+| rag/evaluation/EvaluationResult.java       | 评估结果汇总：Recall@1/3/5、MRR、Intent Accuracy、Filter Rate |
+| rag/evaluation/RAGEvaluationService.java   | **核心**：离线评估引擎，对每条标注查询执行检索+意图路由，计算四项指标 |
+| [rag/evaluation/RAGMetricsService.java     | **核心**：运行时指标收集器，用 `AtomicLong` + `ConcurrentHashMap` 实时统计请求量、意图分布、过滤率、降级率 |
+| controller/EvaluationController.java       | REST 接口：`POST /api/evaluation/run` 离线评估、`GET /api/evaluation/metrics` 实时指标快照 |
+
+### 新增 1 个资源文件
+
+| 文件                                         | 作用                                                         |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| resources/rag-evaluation/sample-dataset.json | 10 条标注样本，覆盖 KNOWLEDGE/CHAT 两类意图，用占位ID标注期望文档 |
+
+### 修改 2 个文件
+
+| 文件                                                         | 变更                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| [rag/service/RAGQAService.java](vscode-webview://1cbj3sfrkenps9d6d4evrlfcalqlthn6bukobdcop779sruqghro/src/main/java/org/example/voice_assistant/rag/service/RAGQAService.java) | 注入 `RAGMetricsService`，在检索、阈值过滤、成功/降级节点记录指标 |
+| [handler/AsrFinalCommandHandler.java](vscode-webview://1cbj3sfrkenps9d6d4evrlfcalqlthn6bukobdcop779sruqghro/src/main/java/org/example/voice_assistant/handler/AsrFinalCommandHandler.java) | 注入 `RAGMetricsService`，在意图路由分发处记录请求数和意图分布 |
+
+------
+
+## 评估体系说明
+
+### 功能作用
+
+评估体系包含 **离线评估** 和 **在线指标** 两部分：
+
+**离线评估**（`POST /api/evaluation/run`）—— 回答"我的 RAG 系统整体好不好"：
+
+- 用人工标注的数据集对检索质量进行量化打分
+- 对比不同参数/模型/切分策略下的效果差异
+
+**在线指标**（`GET /api/evaluation/metrics`）—— 回答"我的 RAG 系统现在运行得怎么样"：
+
+- 实时统计三层漏斗各环节的流量分布
+- 发现异常波动（如过滤率突然飙升 = 知识库可能有问题）
+
+### 实现方式
+
+1. **标注数据集**（JSON 文件）：每条记录含 `query`、`relevantDocIds`（人工标的相关文档ID）、`expectedIntent`（期望意图分类）
+2. **Recall@K**：对每条 query 执行真实 Milvus 检索，检查 Top-K 结果中是否包含标注的文档 ID
+3. **MRR**：找到第一个相关文档的排名 `rank`，计算 `1/rank` 的均值
+4. **Intent Accuracy**：`IntentRouter.classify()` 结果与 `expectedIntent` 对比
+5. **运行时指标**：用 `AtomicLong` 做无锁计数，在 `RAGQAService` 和 `AsrFinalCommandHandler` 的关键路径节点埋点
+
+### 好处
+
+1. **告别盲调参数** — `minScore=0.55` 不是拍脑袋的，可以跑评估看不同阈值下的 Recall/Filter Rate 权衡
+2. **换模型可对比** — 换 embedding 模型、换切分策略后重跑评估，有数据支撑决策
+3. **意图路由可量化** — 之前只能靠感觉说"规则覆盖 80%"，现在可以精确算 Intent Accuracy
+4. **线上可观测** — 实时指标告诉你什么比例的请求真正受益于 RAG，什么比例被过滤或降级
+5. **持续改进闭环** — 定期更新标注数据集 → 重跑评估 → 观察指标趋势 → 调优 → 再评估
+
+# 5.12.2
+
+### 修改了 3 个文件
+
+| 文件                                                         | 变更                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| [EvaluationQuery.java](vscode-webview://1cbj3sfrkenps9d6d4evrlfcalqlthn6bukobdcop779sruqghro/src/main/java/org/example/voice_assistant/rag/evaluation/EvaluationQuery.java) | `relevantDocIds` → `relevantSources`，注释改为匹配 metadata 中的 `_source`/`_file_name` |
+| [RAGEvaluationService.java](vscode-webview://1cbj3sfrkenps9d6d4evrlfcalqlthn6bukobdcop779sruqghro/src/main/java/org/example/voice_assistant/rag/evaluation/RAGEvaluationService.java) | 新增 `extractSource()` 从 metadata JSON 解析 `_file_name`/`_source`；新增 `matchesAnySource()` 做模糊匹配（文件名可匹配完整路径）；重写 `evaluateSingleQuery()` 用 source 而非 UUID 做排位计算 |
+| [sample-dataset.json](vscode-webview://1cbj3sfrkenps9d6d4evrlfcalqlthn6bukobdcop779sruqghro/src/main/resources/rag-evaluation/sample-dataset.json) | 字段名改为 `relevantSources`，占位注释改为"文件名或路径"，q1 已用真实文件名"阿里云百炼手机产品介绍.md" |
+
+### 匹配逻辑
+
+```
+标注数据集:  relevantSources = ["阿里云百炼手机产品介绍.md", "合同.pdf"]
+                          ↓
+Milvus检索结果 → 解析 metadata → _file_name = "阿里云百炼手机产品介绍.md"
+                                            ↓
+                               contains("阿里云百炼手机产品介绍介绍.md") = true → 命中
+```
+
+用 `contains` 而非 `equals` 是为了兼容：你可以标注完整路径 `./uploads/合同.pdf`，也可以只写文件名 `合同.pdf`，都能匹配上。
+
+# 5.13.1
+
+总结一下三处改动：
+
+### DocumentChunkConfig.java — 新增 `minSize` 配置项
+
+- 添加了 `minSize = 150`，分片内容少于 150 字符时自动与相邻分片合并
+- 添加了 `@ConfigurationProperties(prefix = "rag.chunk")`，支持在 application.properties 中通过 `rag.chunk.min-size` 等配置覆盖
+
+### DocumentChunkService.java — 新增 `mergeSmallChunks` 方法
+
+核心逻辑：
+
+- 遍历所有分片，遇到低于 `minSize` 的就暂存到 buffer
+- 碰到正常大小的分片时，将之前积攒的小分片**前置合并**进去
+- 尾部剩余的小分片合并到最后一个正常分片末尾
+- 合并后重新编号 `chunkIndex`
+
+这样 "## 四、会员相关" 这种只有标题没正文的片段，会自动合并到下一个有内容的段落中，不会再作为独立分片被检索到。
+
+### RAGQAService.java — 修复误导标签
+
+- `相似度: 4734.45` → `L2距离: 4734.45, 越小越匹配`
+
+**注意**：你需要重建索引才能看到分片合并的效果。已经入库的旧分片不会自动更新，需要重新上传文档触发重新分片。
+
+# 5.13.2
+
+## 修改清单
+
+### 1. 新增ChunkTokenizer.java— Token 计数 + 文本切分工具
+
+| 方法                                    | 作用                                                         |
+| --------------------------------------- | ------------------------------------------------------------ |
+| `countTokens(text)`                     | 启发式估算 token 数，区分 CJK 字符（1 字符≈1 token）和英文单词（1 单词≈1.3 token）。不引入外部依赖 |
+| `splitSentences(text)`                  | 按句末标点（。！？!?）切分句子                               |
+| `splitParagraphs(text)`                 | 按双换行+切分段落                                            |
+| `extractLastSentences(text, maxTokens)` | 从末尾提取完整的 N 个句子作为 overlap，**绝不截断句子**      |
+
+**为什么这样做**：之前用 `text.substring(text.length() - overlapSize)` 直接截字符，可能从句子中间砍断，导致 overlap 语义破碎。新方法保证 overlap 始终是完整句子。
+
+------
+
+### 2. 重写DocumentChunkConfig.java— Token-based 配置
+
+
+
+```
+旧: maxSize=800(char), overlap=100(char), minSize=150(char)
+新: targetSize=500(token), maxSize=800(token), minSize=100(token), overlapTokens=80(token)
+```
+
+新增 `@ConfigurationProperties(prefix = "rag.chunk")`，可在 `application.properties` 中覆盖：
+
+
+
+```properties
+rag.chunk.target-size=500
+rag.chunk.max-size=800
+rag.chunk.min-size=100
+rag.chunk.overlap-tokens=80
+```
+
+**为什么引入 `targetSize`**：旧版只有一个 `maxSize`，chunk 尺寸不可控。新版三级预算模型：
+
+- `targetSize` — 理想尺寸，切分时尽量逼近
+- `maxSize` — 硬上限，超出强制降级到更细粒度的切分策略
+- `minSize` — 软下限，低于此值尝试与同 section 邻居合并
+
+------
+
+### 3. 重写DocumentChunkService.java— 核心 Pipeline
+
+这是改动最大的文件，从 ~220 行重写为 ~440 行。以下是每个设计点：
+
+#### 3a. 四层语义切分优先级 (Chunking Cascade)
+
+
+
+```
+splitByHeadings → groupByTokenBudget → splitOversizedParagraph → forceCharSplit
+    (第1层)           (第2层)              (第3层)                   (第4层)
+```
+
+每一层在超出 `maxSize` 时自动降级到下一层，避免产生超大 chunk：
+
+| 层级 | 边界          | 触发条件       | 降级           |
+| ---- | ------------- | -------------- | -------------- |
+| 1    | Markdown 标题 | 始终           | → 生成 Section |
+| 2    | 段落 (`\n\n`) | 段落 > maxSize | → 第3层        |
+| 3    | 句子 (。！？) | 单句 > maxSize | → 第4层        |
+| 4    | 标点/字符     | 兜底           | —              |
+
+#### 3b. Title 参与 Embedding
+
+旧版：title 只存在 metadata (`chunk.setTitle(title)`)，不进入 content，所以不参与向量检索。
+
+新版 `buildChunk`：
+
+
+
+```java
+String content = (title != null) ? title + "\n" + body : body;
+```
+
+chunk content 变为 `"会员等级与权益体系\n## 三、核心权益对照表\n| 权益项 |..."`，title 被 embedding 编码进向量，检索时查询词命中 title 的概率大幅提升。
+
+#### 3c. Section Isolation（禁止跨主题合并）
+
+旧版 `mergeSmallChunks` 是对全局所有 chunk 做后置修补，不同 Section 的小 chunk 可能被合并到一起（如 "Redis配置" 和 "Kafka配置" 被合并成一个 chunk → 语义污染）。
+
+新版 `mergeSmallChunksInSection` 只在 `chunkSection()` 内部调用，合并范围严格限定在当前 Section 的 chunk 列表内。
+
+#### 3d. Sentence-level Overlap
+
+旧版：
+
+
+
+```java
+String overlap = text.substring(text.length() - overlapSize);
+// 可能截断："...会员等级分为 Lv.1 到 Lv" （句子被砍断）
+```
+
+新版：
+
+
+
+```java
+String overlap = ChunkTokenizer.extractLastSentences(prevBody, overlapTokens);
+// 完整句子："...退款优先级为极速（1-2天）。"
+```
+
+#### 3e. 合并时机：流程内 vs 后置修补
+
+旧版流程：
+
+
+
+```
+chunkSection → chunkSection → ... → mergeSmallChunks(all)  ← 全局后置
+```
+
+新版流程：
+
+
+
+```
+chunkSection → groupByTokenBudget → materializeChunks → mergeSmallChunksInSection
+                                                           ↑ 只在 Section 内
+```
+
+每个 Section 独立完成"分组→装配→合并"全流程，合并是流程内的一个环节而非事后补救。
+
+------
+
+### 4. 之前修复 RAGQAService.java — 相似度标签
+
+
+
+```
+旧: "📄 文档 1 (相似度: 4734.45)"
+新: "📄 文档 1 (L2距离: 4734.45, 越小越匹配)"
+```
+
+------
+
+## 总结对比
+
+| 维度     | 旧版                            | 新版                                            |
+| -------- | ------------------------------- | ----------------------------------------------- |
+| 尺寸度量 | 字符数                          | Token 估算                                      |
+| 切分策略 | 2 层（标题+段落）               | 4 层级联（标题→段落→句子→字符）                 |
+| Title    | 仅存 metadata，不参与 embedding | 拼入 content，进入向量检索                      |
+| Overlap  | `substring` 截字符              | `extractLastSentences` 取完整句子               |
+| 合并范围 | 全局后置修补                    | Section 内流程中合并                            |
+| 配置粒度 | 3 档 (maxSize/overlap/minSize)  | 4 档 (targetSize/maxSize/minSize/overlapTokens) |
+
+**需要重建索引才能生效** — 旧分片已经在 Milvus 中，需要重新上传文档触发新版分片逻辑。
+
+# 5.14.1
+
+## 问题根因
+
+`collection not loaded` — Milvus 中 collection 在创建后或重启后需要显式调用 `loadCollection` 加载到内存才能搜索。之前只在 insert/delete 时有加载，搜索路径没有。
+
+## 修改了两处
+
+**1. VectorSearchService.java** — 搜索前加载 collection
+
+新增 `ensureCollectionLoaded()` 方法，每次搜索前确保 collection 在内存中。幂等操作，已加载的不会重复加载。
+
+**2.MilvusClientFactory.java** — 启动时加载 collection
+
+在 `createClient()` 中，创建/确认 collection 后立即 `loadCollection`，确保服务一启动 collection 就在内存中。

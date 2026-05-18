@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /Users/mikey/java_work/voice/src/main/java/org/example/voice_assistant/rag/evaluation)"
+    ],
+    "additionalDirectories": [
+      "/Users/mikey/java_work/voice/src/main/java/org/example/voice_assistant/rag"
+    ]
+  }
+}

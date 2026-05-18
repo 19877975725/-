@@ -26,8 +26,8 @@ public class RAGConfig {
     /** 自动意图路由：按查询类型决定是否走 RAG */
     private Boolean autoRoute = true;
 
-    /** 向量检索相关性阈值（0~1），低于此值的文档不被采用 */
-    private Double minScore = 0.55;
+    /** 向量检索相关性阈值，L2 距离小于此值认为相关（0~∞，越小越相似） */
+    private Double minScore = 20000.0;
 
     /** RAG 检索返回的最大文档数量 */
     private Integer topK = 5;

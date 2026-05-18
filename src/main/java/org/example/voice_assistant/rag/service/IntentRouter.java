@@ -42,7 +42,7 @@ public class IntentRouter {
     private static final Pattern KNOWLEDGE_PATTERN = Pattern.compile(
             ".*(?:查|搜索|找|检索|知识库|文档|合同|会议|纪要|记录|规定|制度|流程|"
                     + "是什么|什么是|怎么|如何|解释|说明|定义|什么是|告诉我|帮我查|"
-                    + "帮我找|帮我搜索).*"
+                    + "帮我找|帮我搜索|计算|算一下|多少).*"
     );
 
     private static final Pattern COMMAND_PATTERN = Pattern.compile(

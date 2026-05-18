@@ -7,6 +7,7 @@ import io.milvus.param.collection.CollectionSchemaParam;
 import io.milvus.param.collection.CreateCollectionParam;
 import io.milvus.param.collection.FieldType;
 import io.milvus.param.collection.HasCollectionParam;
+import io.milvus.param.collection.LoadCollectionParam;
 import io.milvus.param.index.CreateIndexParam;
 import lombok.extern.slf4j.Slf4j;
 import org.example.voice_assistant.config.MilvusProperties;
@@ -51,6 +52,9 @@ public class MilvusClientFactory {
             }else {
                 log.info("collection {} 已经存在", MilvusConstants.MILVUS_COLLECTION_NAME);
             }
+
+            // 3. 加载 collection 到内存
+            loadCollection(client);
 
             return client;
         } catch (Exception e) {
@@ -169,6 +173,28 @@ public class MilvusClientFactory {
         }
 
         log.info("成功为 vector 字段创建索引");
+    }
+
+    /**
+     * 加载 collection 到内存，使其可被搜索。
+     */
+    private void loadCollection(MilvusServiceClient client) {
+        try {
+            R<RpcStatus> response = client.loadCollection(
+                    LoadCollectionParam.newBuilder()
+                            .withCollectionName(MilvusConstants.MILVUS_COLLECTION_NAME)
+                            .build()
+            );
+            if (response.getStatus() == 0) {
+                log.info("collection {} 已加载到内存", MilvusConstants.MILVUS_COLLECTION_NAME);
+            } else if (response.getStatus() == 65535) {
+                log.info("collection {} 已在内存中", MilvusConstants.MILVUS_COLLECTION_NAME);
+            } else {
+                log.warn("加载 collection 状态异常: {}", response.getMessage());
+            }
+        } catch (Exception e) {
+            log.warn("加载 collection 异常: {}", e.getMessage());
+        }
     }
 
     /**

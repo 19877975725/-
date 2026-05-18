@@ -1,0 +1,180 @@
+[
+  {
+    "id": "q01",
+    "query": "退款需要多长时间到账",
+    "relevantSources": [
+      "退款与售后政策.md"
+    ],
+    "expectedAnswerKeyPoints": "数字会员3-5工作日，实物7-10工作日，原路返回",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q02",
+    "query": "API签名怎么计算",
+    "relevantSources": [
+      "开放平台API接口规范v3.2.md"
+    ],
+    "expectedAnswerKeyPoints": "HMAC-SHA256算法，signing_string组成，base64编码",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q03",
+    "query": "E-ORD-2003这个错误是什么意思",
+    "relevantSources": [
+      "系统错误码完整说明.md"
+    ],
+    "expectedAnswerKeyPoints": "订单状态不允许此操作，状态机规则违反",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q04",
+    "query": "铂金会员有什么权益",
+    "relevantSources": [
+      "会员等级与权益体系.md"
+    ],
+    "expectedAnswerKeyPoints": "500元优惠券、优先退款、9折、专属电话客服",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q05",
+    "query": "手机号在页面上应该怎么展示才合规",
+    "relevantSources": [
+      "数据安全与隐私合规指南.md"
+    ],
+    "expectedAnswerKeyPoints": "脱敏展示，138****5678格式",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q06",
+    "query": "忘记密码怎么处理",
+    "relevantSources": [
+      "产品使用常见问题FAQ.md"
+    ],
+    "expectedAnswerKeyPoints": "获取验证码后重置，新密码8-20位，含数字和大写字母",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q07",
+    "query": "采购金额超过5万需要谁审批",
+    "relevantSources": [
+      "内部审批流程说明.md"
+    ],
+    "expectedAnswerKeyPoints": "部门负责人+财务+VP+CEO，完整采购方案+招标记录",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q08",
+    "query": "会员折扣和秒杀活动能同时用吗",
+    "relevantSources": [
+      "价格体系与计费规则.md"
+    ],
+    "expectedAnswerKeyPoints": "不能，系统自动取最优折扣",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q09",
+    "query": "发现数据泄露了应该怎么做",
+    "relevantSources": [
+      "数据安全与隐私合规指南.md"
+    ],
+    "expectedAnswerKeyPoints": "1小时内隔离系统，4小时内评估范围，24小时内通知用户",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q10",
+    "query": "API调用超过限流了返回什么状态码",
+    "relevantSources": [
+      "开放平台API接口规范v3.2.md"
+    ],
+    "expectedAnswerKeyPoints": "429，Rate-Limited，响应头包含剩余次数和重置时间",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q11",
+    "query": "买的东西不满意怎么退",
+    "relevantSources": [
+      "退款与售后政策.md"
+    ],
+    "expectedAnswerKeyPoints": "签收7天内，商品完好，申请退款，原路退回",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q12",
+    "query": "如何成为钻石会员",
+    "relevantSources": [
+      "会员等级与权益体系.md"
+    ],
+    "expectedAnswerKeyPoints": "累计50000以上成长值，消费1元=1成长值，每日签到+5",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q13",
+    "query": "申请开除需要走什么流程",
+    "relevantSources": [],
+    "expectedAnswerKeyPoints": "文档中没有相关信息，诚实告知",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q14",
+    "query": "连续包月会员扣款失败会怎样",
+    "relevantSources": [
+      "退款与售后政策.md",
+      "价格体系与计费规则.md"
+    ],
+    "expectedAnswerKeyPoints": "第1、3、5天重试，3次均失败暂停会员权益，24小时内可全额退款",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q15",
+    "query": "你好，今天天气真好",
+    "relevantSources": [],
+    "expectedAnswerKeyPoints": "简单问候和闲聊",
+    "expectedIntent": "CHAT"
+  },
+  {
+    "id": "q16",
+    "query": "支付时扣了钱但订单状态没变怎么办",
+    "relevantSources": [
+      "产品使用常见问题FAQ.md",
+      "系统错误码完整说明.md"
+    ],
+    "expectedAnswerKeyPoints": "支付掉单，系统每5分钟核对，30分钟内自动补单",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q17",
+    "query": "技术变更的发布窗口是什么时间",
+    "relevantSources": [
+      "内部审批流程说明.md"
+    ],
+    "expectedAnswerKeyPoints": "常规每周二周四14:00-17:00，每月最后3个工作日禁止变更",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q18",
+    "query": "谢谢你的帮助",
+    "relevantSources": [],
+    "expectedAnswerKeyPoints": "礼貌回应",
+    "expectedIntent": "CHAT"
+  },
+  {
+    "id": "q19",
+    "query": "商品原价300满200减30，铂金会员有50元券，最终付多少",
+    "relevantSources": [
+      "价格体系与计费规则.md",
+      "会员等级与权益体系.md"
+    ],
+    "expectedAnswerKeyPoints": "300-30=270, 270×0.9=243, 243-50=193元",
+    "expectedIntent": "KNOWLEDGE"
+  },
+  {
+    "id": "q20",
+    "query": "用户要求删除他在平台的所有数据，怎么处理",
+    "relevantSources": [
+      "数据安全与隐私合规指南.md",
+      "产品使用常见问题FAQ.md"
+    ],
+    "expectedAnswerKeyPoints": "15个工作日，二次身份验证，订单匿名化保留3年，地址聊天记录彻底删除",
+    "expectedIntent": "KNOWLEDGE"
+  }
+]
