@@ -1,3 +1,25 @@
+# Voice Assistant
+
+AI-powered voice assistant platform with LLM + Agent + RAG + TTS.
+
+## Quick Start
+
+```powershell
+.\start.ps1
+```
+
+[Click here to start →](http://localhost:5173)
+
+| Service | Port |
+|----------|------|
+| Milvus | 19530 |
+| Backend | 8080 |
+| Frontend | 5173 |
+
+Requirements: Java 17+, Maven 3.9+, MySQL 8.0+, Node.js 24+, Python 3.12+
+
+---
+
 # 5.10.1
 
 ###  新建SentenceBoundaryDetector.java

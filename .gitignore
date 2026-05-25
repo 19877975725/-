@@ -35,5 +35,9 @@ build/
 ### VS Code ###
 .vscode/
 
+### Project ###
+.vite/
+milvus_data/
+
 ### Mac OS ###
 .DS_Store.claude/
